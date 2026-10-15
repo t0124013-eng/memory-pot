@@ -527,6 +527,11 @@ body{word-break:auto-phrase;line-break:strict}
 .toast{position:absolute;left:50%;bottom:40px;transform:translateX(-50%);z-index:40;background:var(--ink);color:var(--card);font-size:.82rem;font-weight:700;padding:10px 18px;border-radius:999px;box-shadow:var(--shadow);white-space:nowrap;animation:pop .25s ease-out}
 #scr-list[data-mode="no"] #listStudy{background:var(--no);color:#fff}
 #scr-list[data-mode="hmm"] #listStudy{background:var(--hmm);color:#fff}
+.mix-opt{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1.5px solid var(--line);background:var(--card);border-radius:16px;padding:14px;cursor:pointer}
+.mix-opt:active{transform:scale(.98)}
+.mix-opt:disabled{opacity:.4;cursor:default}
+.mix-ico{width:40px;height:40px;border-radius:12px;background:var(--mc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.mix-n{font-family:var(--f-mono);font-size:1rem;font-weight:500;color:var(--mc)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
 <style>
@@ -803,6 +808,15 @@ img{max-width:100%}
         <div class="rs-opts" id="rsOpts" role="radiogroup" aria-label="リセットする範囲"></div>
         <p class="rs-keep">学びの木・XP・連続日数は消えません。</p>
         <div class="rs-actions"><button class="btn2" id="rsCancel" type="button">やめる</button><button class="rs-go" id="rsGo" type="button">リセット</button></div>
+      </div>
+    </div>
+    <div class="sheet-back" id="mixSheet" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mixTitle">
+        <div class="sheet-grip" aria-hidden="true"></div>
+        <h2 class="sheet-title" id="mixTitle">ランダムでめくる</h2>
+        <p class="note">どの範囲からランダムに出すか選んでください。枚数は設定の「1セットの枚数」に合わせます。</p>
+        <div class="rs-opts" id="mixOpts"></div>
+        <button class="btn2" id="mixCancel" type="button">やめる</button>
       </div>
     </div>
     <div class="toast" id="toast" role="status" hidden></div>
@@ -2636,7 +2650,7 @@ const SIZE=[[10,'10枚'],[20,'20枚'],[50,'50枚'],[0,'全部']];
 const TIMER=[[3,'3秒'],[5,'5秒'],[7,'7秒'],[10,'10秒'],[15,'15秒'],[30,'30秒']];
 function chips(el,opts,key){el.innerHTML='';opts.forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=l;
   b.setAttribute('aria-pressed',set[key]===v);b.onclick=()=>{set[key]=v;saveAll();renderTop();};el.appendChild(b);});}
-const pool=mode=>deck().items.filter(x=>(!set.cat||x.c===set.cat)&&(mode==='all'||(mode==='mix'?status[x.id]!=='know':mode==='new'?!status[x.id]:status[x.id]===mode)));
+const pool=mode=>deck().items.filter(x=>(!set.cat||x.c===set.cat)&&(mode==='all'||(mode==='weak'?(status[x.id]==='no'||status[x.id]==='hmm'):mode==='mix'?status[x.id]!=='know':mode==='new'?!status[x.id]:status[x.id]===mode)));
 function counts(){const c={know:0,no:0,hmm:0};deck().items.forEach(x=>{const s=status[x.id];if(c[s]!==undefined)c[s]++;});return c;}
 function renderTop(){
   const D=deck(),c=counts(),t=D.items.length||1;
@@ -2666,8 +2680,9 @@ function renderTop(){
   $('greet').textContent=h>=5&&h<11?'おはよう':h>=11&&h<18?'こんにちは':'こんばんは';
   $('tNo').textContent=c.no;$('tHmm').textContent=c.hmm;
   const pm=pool('mix').length,pmh=pool('hmm').length,nm=set.size?Math.min(set.size,pm):pm;
-  $('ctaMix').disabled=!pm;
-  $('mixSub').textContent=pm?`混ぜて${nm}枚`:'全部覚えました';
+  const pa=pool('all').length;
+  $('ctaMix').disabled=!pa;
+  $('mixSub').textContent=pa?'範囲を選ぶ':'カードがありません';
   $('mixDots').innerHTML=pm?`<span><i style="background:var(--desk-2);border:1px solid var(--line)"></i>新しい ${pn}</span><span><i style="background:var(--no)"></i>覚えていない ${pno}</span><span><i style="background:var(--hmm)"></i>納得いかない ${pmh}</span>`:'';
   chips($('chSize'),SIZE,'size');chips($('chTimer'),TIMER,'timer');
   $('catSetting').hidden=!cats.length;$('catLabel').textContent=D.catLabel||'分類';
@@ -2862,7 +2877,7 @@ function row(x,withActions){
 /* 一覧：「覚えていない」「納得いかない」を同じ流れで見てからめくる */
 let listMode='hmm';
 const LIST_TEXT={
-  no:{title:'覚えていないカード',note:nb('左にスワイプしたカードです。','答えを見直してから','まとめてめくりましょう。','もう覚えたものは','「覚えた」にできます。'),
+  no:{title:'覚えていないカード',note:nb('左にスワイプしたカードです。','答えを見直してから','まとめてめくりましょう。'),
       empty:'まだありません。<br>左にスワイプしたカードがここに集まります。',btn:'このカードを復習する'},
   hmm:{title:'納得いかないカード',note:nb('答えが腑に落ちないカードです。','辞書や資料で確かめて、','納得できたら','「覚えた」か「解除」に','しましょう。'),
       empty:'まだありません。<br>上にスワイプしたカードがここに集まります。',btn:'このカードだけでめくる'}};
@@ -2873,7 +2888,7 @@ function renderList(){
   const items=deck().items.filter(x=>status[x.id]===listMode);const box=$('hmmList');box.innerHTML='';
   $('listStudy').hidden=!items.length;$('listSub').textContent=`${items.length}枚`;
   if(!items.length){box.innerHTML=`<div class="empty">${T.empty}</div>`;return;}
-  items.forEach(x=>box.appendChild(row(x,true)));
+  items.forEach(x=>box.appendChild(row(x,listMode==='hmm')));
 }
 
 /* ---------- DECKS（単語帳の切り替えと取り込み） ---------- */
@@ -2982,7 +2997,21 @@ $('addDeck').onclick=()=>show('decks');
 $('decksBack').onclick=()=>show('top');
 bindDeckSwipe();$('treeBtn').onclick=pokeTree;
 $('garden').onclick=()=>show('grow');$('rescueBtn').onclick=usePotion;$('growBack').onclick=()=>show('top');
-$('ctaMix').onclick=()=>startSession('mix');
+/* ランダムの範囲を選ぶ */
+const MIX_OPTS=[['all','すべてのカード','覚えたカードも含めて全部から','var(--ink)'],
+  ['weak','覚えていない ＋ 納得いかない','あやしいカードだけ','var(--no)']];
+function openMix(){
+  const box=$('mixOpts');box.innerHTML='';
+  MIX_OPTS.forEach(([k,label,sub,col])=>{const n=pool(k).length,m=set.size?Math.min(set.size,n):n;
+    const b=document.createElement('button');b.type='button';b.className='mix-opt';b.disabled=!n;b.style.setProperty('--mc',col);
+    b.innerHTML=`<span class="mix-ico" aria-hidden="true">⤨</span><span class="rs-text"><b></b><small></small></span><span class="mix-n">${n?m+'枚':'0枚'}</span>`;
+    b.querySelector('b').textContent=label;b.querySelector('small').innerHTML=n?nb(sub,`（対象 ${n}枚）`):'対象のカードがありません';
+    b.onclick=()=>{closeMix();startSession(k);};box.appendChild(b);});
+  $('mixSheet').hidden=false;}
+function closeMix(){$('mixSheet').hidden=true;}
+$('ctaMix').onclick=openMix;
+$('mixCancel').onclick=closeMix;
+$('mixSheet').addEventListener('click',e=>{if(e.target===e.currentTarget)closeMix();});
 $('tileNo').onclick=()=>openList('no');
 $('tileHmm').onclick=()=>openList('hmm');
 $('allBtn').onclick=()=>startSession('all');
